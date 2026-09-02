@@ -83,8 +83,17 @@ The install is meant to stay compatible with `LLVM_SYS_211_PREFIX`.
 Each archive also contains:
 
 - `share/llvm-bootstrap/BUILDINFO.json`
+- `share/licenses/llvm/LICENSE.TXT`
+- `share/licenses/llvm/BLAKE3-LICENSE.txt`
+- `share/licenses/llvm/XXHASH-LICENSE.txt`
+- `share/licenses/llvm/MD5-LICENSE.txt`
+- `share/licenses/llvm/REGEX-LICENSE.txt`
+- `share/licenses/llvm/UNICODE-LICENSE.txt`
+- `share/licenses/llvm/MSVCSETUPAPI-LICENSE.txt`
 
-That manifest records the package linkage/runtime mode and the build provenance used to produce it, including:
+The license files contain the complete upstream LLVM license for the pinned ref and the separate
+notices for third-party code compiled into LLVM Support. The manifest records the package
+linkage/runtime mode and the build provenance used to produce it, including:
 
 - LLVM ref and package version
 - CMake and Ninja versions
@@ -182,3 +191,8 @@ git push origin main
 git tag llvm-21.1.2
 git push origin llvm-21.1.2
 ```
+
+## License
+
+The bootstrap scripts are MIT-licensed; see [`LICENSE`](./LICENSE). Packaged LLVM installs retain
+LLVM's license and the applicable LLVM Support third-party notices under `share/licenses/llvm/`.

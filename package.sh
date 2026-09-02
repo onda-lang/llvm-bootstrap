@@ -18,6 +18,35 @@ linkage_token="$(printf '%s' "$linkage" | tr '[:upper:]' '[:lower:]')"
 archive="$output_dir/llvm-$version-$platform-$arch-$linkage_token.tar.xz"
 manifest_dir="$install_dir/share/llvm-bootstrap"
 manifest_path="$manifest_dir/BUILDINFO.json"
+llvm_license="$install_dir/share/licenses/llvm/LICENSE.TXT"
+blake3_license="$install_dir/share/licenses/llvm/BLAKE3-LICENSE.txt"
+xxhash_license="$install_dir/share/licenses/llvm/XXHASH-LICENSE.txt"
+md5_license="$install_dir/share/licenses/llvm/MD5-LICENSE.txt"
+regex_license="$install_dir/share/licenses/llvm/REGEX-LICENSE.txt"
+unicode_license="$install_dir/share/licenses/llvm/UNICODE-LICENSE.txt"
+msvc_setup_api_license="$install_dir/share/licenses/llvm/MSVCSETUPAPI-LICENSE.txt"
+
+if [[ ! -f "$llvm_license" ]] \
+  || ! grep -Fq "Apache License v2.0 with LLVM Exceptions" "$llvm_license" \
+  || ! grep -Fq "END OF TERMS AND CONDITIONS" "$llvm_license"; then
+  echo "complete LLVM license not found at $llvm_license" >&2
+  exit 1
+fi
+
+if [[ ! -f "$blake3_license" || ! -f "$xxhash_license" || ! -f "$md5_license" \
+  || ! -f "$regex_license" || ! -f "$unicode_license" || ! -f "$msvc_setup_api_license" ]] \
+  || ! grep -Fq "CC0 1.0 Universal" "$blake3_license" \
+  || ! grep -Fq "Copyright (C) 2012-2023, Yann Collet" "$xxhash_license" \
+  || ! grep -Fq "Redistributions in binary form must reproduce" "$xxhash_license" \
+  || ! grep -Fq "Alexander Peslyak" "$md5_license" \
+  || ! grep -Fq "Henry Spencer" "$regex_license" \
+  || ! grep -Fq "Todd C. Miller" "$regex_license" \
+  || ! grep -Fq "1991-2015 Unicode" "$unicode_license" \
+  || ! grep -Fq "1991-2022 Unicode" "$unicode_license" \
+  || ! grep -Fq "Copyright (C) Microsoft Corporation" "$msvc_setup_api_license"; then
+  echo "complete LLVM third-party license material not found under $install_dir/share/licenses/llvm" >&2
+  exit 1
+fi
 
 mkdir -p "$output_dir" "$manifest_dir"
 

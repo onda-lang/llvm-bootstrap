@@ -74,6 +74,59 @@ cmake "${configure_args[@]}"
 
 cmake --build "$build_dir" --config Release --target install
 
+llvm_license_source="$source_dir/llvm/LICENSE.TXT"
+blake3_license_source="$source_dir/llvm/lib/Support/BLAKE3/LICENSE"
+xxhash_source="$source_dir/llvm/lib/Support/xxhash.cpp"
+md5_source="$source_dir/llvm/lib/Support/MD5.cpp"
+regex_license_source="$source_dir/llvm/lib/Support/COPYRIGHT.regex"
+strlcpy_source="$source_dir/llvm/lib/Support/regstrlcpy.c"
+convert_utf_source="$source_dir/llvm/lib/Support/ConvertUTF.cpp"
+unicode_data_source="$source_dir/llvm/lib/Support/UnicodeNameToCodepointGenerated.cpp"
+msvc_setup_api_source="$source_dir/llvm/include/llvm/WindowsDriver/MSVCSetupApi.h"
+llvm_license_dir="$install_dir/share/licenses/llvm"
+if [[ ! -f "$llvm_license_source" || ! -f "$blake3_license_source" || ! -f "$xxhash_source" \
+  || ! -f "$md5_source" || ! -f "$regex_license_source" || ! -f "$strlcpy_source" \
+  || ! -f "$convert_utf_source" || ! -f "$unicode_data_source" \
+  || ! -f "$msvc_setup_api_source" ]]; then
+  echo "LLVM license material is missing from $source_dir/llvm" >&2
+  exit 1
+fi
+
+extract_comment() {
+  awk -v wanted="$2" '
+    /^\/\*/ { block++ }
+    block == wanted { print }
+    block == wanted && /^[[:space:]]*\*\/$/ { exit }
+  ' "$1"
+}
+
+mkdir -p "$llvm_license_dir"
+cp "$llvm_license_source" "$llvm_license_dir/LICENSE.TXT"
+cp "$blake3_license_source" "$llvm_license_dir/BLAKE3-LICENSE.txt"
+extract_comment "$xxhash_source" 1 > "$llvm_license_dir/XXHASH-LICENSE.txt"
+extract_comment "$md5_source" 1 > "$llvm_license_dir/MD5-LICENSE.txt"
+cp "$regex_license_source" "$llvm_license_dir/REGEX-LICENSE.txt"
+{
+  echo
+  echo "Additional llvm_strlcpy notice"
+  echo "================================"
+  echo
+  extract_comment "$strlcpy_source" 1
+} >> "$llvm_license_dir/REGEX-LICENSE.txt"
+{
+  echo "ConvertUTF notice"
+  echo "================="
+  echo
+  extract_comment "$convert_utf_source" 2
+  echo
+  echo "Unicode data notice"
+  echo "==================="
+  echo
+  extract_comment "$unicode_data_source" 1
+} > "$llvm_license_dir/UNICODE-LICENSE.txt"
+sed -n '1,/^\/\/ <\/license>$/p' "$msvc_setup_api_source" \
+  > "$llvm_license_dir/MSVCSETUPAPI-LICENSE.txt"
+
 if [[ ! -x "$install_dir/bin/llvm-config" && ! -f "$install_dir/bin/llvm-config" ]]; then
   echo "llvm-config not found at $install_dir/bin/llvm-config after build" >&2
   exit 1
@@ -81,5 +134,25 @@ fi
 
 if [[ ! -f "$expected_core_lib" ]]; then
   echo "expected LLVM library not found at $expected_core_lib after build" >&2
+  exit 1
+fi
+
+if ! grep -Fq "Apache License v2.0 with LLVM Exceptions" "$llvm_license_dir/LICENSE.TXT" \
+  || ! grep -Fq "END OF TERMS AND CONDITIONS" "$llvm_license_dir/LICENSE.TXT"; then
+  echo "installed LLVM license is incomplete" >&2
+  exit 1
+fi
+
+if ! grep -Fq "CC0 1.0 Universal" "$llvm_license_dir/BLAKE3-LICENSE.txt" \
+  || ! grep -Fq "Copyright (C) 2012-2023, Yann Collet" "$llvm_license_dir/XXHASH-LICENSE.txt" \
+  || ! grep -Fq "Redistributions in binary form must reproduce" "$llvm_license_dir/XXHASH-LICENSE.txt" \
+  || ! grep -Fq "Alexander Peslyak" "$llvm_license_dir/MD5-LICENSE.txt" \
+  || ! grep -Fq "Henry Spencer" "$llvm_license_dir/REGEX-LICENSE.txt" \
+  || ! grep -Fq "Todd C. Miller" "$llvm_license_dir/REGEX-LICENSE.txt" \
+  || ! grep -Fq "1991-2015 Unicode" "$llvm_license_dir/UNICODE-LICENSE.txt" \
+  || ! grep -Fq "1991-2022 Unicode" "$llvm_license_dir/UNICODE-LICENSE.txt" \
+  || ! grep -Fq "Copyright (C) Microsoft Corporation" \
+    "$llvm_license_dir/MSVCSETUPAPI-LICENSE.txt"; then
+  echo "installed LLVM third-party license material is incomplete" >&2
   exit 1
 fi

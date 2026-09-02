@@ -62,6 +62,48 @@ $archiveName = "llvm-$Version-$Platform-$Architecture-$linkageToken$runtimeToken
 $archivePath = Join-Path $OutputDir $archiveName
 $manifestDir = Join-Path $InstallDir "share\llvm-bootstrap"
 $manifestPath = Join-Path $manifestDir "BUILDINFO.json"
+$llvmLicense = Join-Path $InstallDir "share\licenses\llvm\LICENSE.TXT"
+$blake3License = Join-Path $InstallDir "share\licenses\llvm\BLAKE3-LICENSE.txt"
+$xxhashLicense = Join-Path $InstallDir "share\licenses\llvm\XXHASH-LICENSE.txt"
+$md5License = Join-Path $InstallDir "share\licenses\llvm\MD5-LICENSE.txt"
+$regexLicense = Join-Path $InstallDir "share\licenses\llvm\REGEX-LICENSE.txt"
+$unicodeLicense = Join-Path $InstallDir "share\licenses\llvm\UNICODE-LICENSE.txt"
+$msvcSetupApiLicense = Join-Path $InstallDir "share\licenses\llvm\MSVCSETUPAPI-LICENSE.txt"
+
+if (-not (Test-Path $llvmLicense)) {
+    throw "Complete LLVM license not found at $llvmLicense"
+}
+
+if (-not (Test-Path $blake3License) -or
+    -not (Test-Path $xxhashLicense) -or
+    -not (Test-Path $md5License) -or
+    -not (Test-Path $regexLicense) -or
+    -not (Test-Path $unicodeLicense) -or
+    -not (Test-Path $msvcSetupApiLicense)) {
+    throw "Complete LLVM third-party license material not found under $InstallDir\share\licenses\llvm"
+}
+$blake3LicenseText = Get-Content $blake3License -Raw
+$xxhashLicenseText = Get-Content $xxhashLicense -Raw
+$md5LicenseText = Get-Content $md5License -Raw
+$regexLicenseText = Get-Content $regexLicense -Raw
+$unicodeLicenseText = Get-Content $unicodeLicense -Raw
+$msvcSetupApiLicenseText = Get-Content $msvcSetupApiLicense -Raw
+if (-not ($blake3LicenseText -match "CC0 1.0 Universal") -or
+    -not ($xxhashLicenseText -match "Copyright \(C\) 2012-2023, Yann Collet") -or
+    -not ($xxhashLicenseText -match "Redistributions in binary form must reproduce") -or
+    -not ($md5LicenseText -match "Alexander Peslyak") -or
+    -not ($regexLicenseText -match "Henry Spencer") -or
+    -not ($regexLicenseText -match "Todd C. Miller") -or
+    -not ($unicodeLicenseText -match "1991-2015 Unicode") -or
+    -not ($unicodeLicenseText -match "1991-2022 Unicode") -or
+    -not ($msvcSetupApiLicenseText -match "Copyright \(C\) Microsoft Corporation")) {
+    throw "Complete LLVM third-party license material not found under $InstallDir\share\licenses\llvm"
+}
+$llvmLicenseText = Get-Content $llvmLicense -Raw
+if (-not ($llvmLicenseText -match "Apache License v2.0 with LLVM Exceptions") -or
+    -not ($llvmLicenseText -match "END OF TERMS AND CONDITIONS")) {
+    throw "Complete LLVM license not found at $llvmLicense"
+}
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 New-Item -ItemType Directory -Force -Path $manifestDir | Out-Null
