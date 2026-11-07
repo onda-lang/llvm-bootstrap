@@ -25,26 +25,52 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    env:
+      LLVM_BUILD_CONTAINER: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: windows-x64
             runner: windows-2022
+            container: ''
             platform: windows
             arch: x64
-          - name: linux-x64
-            runner: ubuntu-22.04
+          - name: linux-x64 (Debian 12)
+            runner: ubuntu-24.04
+            container: debian:bookworm@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8
             platform: linux
             arch: x64
+          - name: linux-arm64 (Debian 12)
+            runner: ubuntu-24.04-arm
+            container: debian:bookworm@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8
+            platform: linux
+            arch: arm64
           - name: macos-arm64
-            runner: macos-14
+            runner: macos-latest
+            container: ''
             platform: macos
             arch: arm64
 
     steps:
+      - name: Install Debian build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          source /etc/os-release
+          test "$ID:$VERSION_ID" = debian:12
+          test "$(getconf GNU_LIBC_VERSION)" = 'glibc 2.36'
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates cmake git ninja-build python3 xz-utils
+
       - name: Checkout bootstrap repo
         uses: actions/checkout@v5
+
+      - name: Test Linux package validation
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s tests -v
 
       - name: Read LLVM version
         id: version
@@ -61,9 +87,11 @@ jobs:
             version="$llvm_ref"
           fi
           release_tag="llvm-$version"
-          echo "llvm_ref=$llvm_ref" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "llvm_ref=$llvm_ref"
+            echo "version=$version"
+            echo "release_tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout llvm-project
         uses: actions/checkout@v5
@@ -146,6 +174,15 @@ jobs:
             -MsvcRuntime "${{ env.LLVM_WINDOWS_MSVC_RUNTIME }}" `
             -LlvmRef "${{ steps.version.outputs.llvm_ref }}"
 
+      - name: Verify macOS deployment targets
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          artifacts=(install/bin/* install/lib/*.a install/lib/*.dylib)
+          bash tests/check_macos_deployment_target.sh \
+            "$LLVM_MACOS_DEPLOYMENT_TARGET" "${artifacts[@]}"
+
       - name: Package on Unix
         if: runner.os != 'Windows'
         shell: bash
@@ -160,6 +197,17 @@ jobs:
             "${{ env.LLVM_LINKAGE }}" \
             "${{ steps.version.outputs.llvm_ref }}"
 
+      - name: Verify packaged Linux SDK
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          PACKAGE_ARCH: ${{ matrix.arch }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          extracted="$(mktemp -d)"
+          tar -xf "artifacts/llvm-$PACKAGE_VERSION-linux-$PACKAGE_ARCH-static.tar.xz" -C "$extracted"
+          python3 tests/check_linux_package.py "$extracted" "$PACKAGE_ARCH"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -170,7 +218,7 @@ jobs:
     name: Publish Release
     if: ${{ github.event_name == 'push' || inputs.publish_release }}
     needs: build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout bootstrap repo
@@ -187,9 +235,11 @@ jobs:
             version="$llvm_ref"
           fi
           release_tag="llvm-$version"
-          echo "llvm_ref=$llvm_ref" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "llvm_ref=$llvm_ref"
+            echo "version=$version"
+            echo "release_tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Validate pushed tag matches llvm.version
         if: ${{ github.event_name == 'push' }}

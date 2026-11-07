@@ -76,7 +76,7 @@ export PKG_LLVM_REF="$llvm_ref"
 export PKG_PLATFORM="$platform"
 export PKG_ARCH="$arch"
 export PKG_LINKAGE="$linkage"
-export PKG_ARCHIVE_NAME="$(basename "$archive")"
+export PKG_ARCHIVE_NAME="${archive##*/}"
 export PKG_CMAKE_VERSION="$cmake_version"
 export PKG_NINJA_VERSION="$ninja_version"
 export PKG_LLVM_CONFIG_VERSION="$llvm_config_version"
@@ -106,6 +106,9 @@ data = {
     "ninja_version": os.environ["PKG_NINJA_VERSION"],
     "llvm_config_version": os.environ["PKG_LLVM_CONFIG_VERSION"],
     "runner_os": platform.platform(),
+    "build_container": os.environ.get("LLVM_BUILD_CONTAINER", ""),
+    "build_os": platform.freedesktop_os_release() if sys.platform == "linux" else {},
+    "libc": dict(zip(("name", "version"), platform.libc_ver())),
     "host_architecture": platform.machine(),
     "compiler_path": os.environ.get("PKG_COMPILER_PATH", ""),
     "compiler_version": os.environ.get("PKG_COMPILER_VERSION", ""),

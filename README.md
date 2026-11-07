@@ -7,7 +7,7 @@ Release-builder repository for prebuilt LLVM installs.
 Host platforms:
 
 - Windows x64
-- Linux x64
+- Linux x64 and arm64
 - macOS arm64
 
 Enabled LLVM backends inside every host build:
@@ -54,6 +54,16 @@ The builder is intentionally minimal and release-oriented:
 - macOS default deployment target: `11.0`
 - Windows default CRT mode: `-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded` (`/MT`)
 
+Linux release builds run in a digest-pinned Debian 12 (bookworm) container on
+native x64 and ARM64 GitHub runners. Their compatibility baseline is glibc 2.36
+and Debian 12's GCC 12 C++ runtime (GLIBCXX 3.4.30, CXXABI 1.3.13). The Ubuntu
+runner supplies the host kernel; compilation and packaging use the Debian
+container's compiler, headers, and libraries. macOS uses `macos-latest` with the
+explicit 11.0 deployment target; Windows uses `windows-2022` and its MSVC toolchain.
+CI checks the macOS deployment metadata of the tools, dylibs, and every object in
+the static archives. This checks the declared minimum; execution on macOS 11 still
+requires testing on that OS.
+
 The optional external dependencies are disabled so the packaged binaries are less tied to whatever happens to be installed on the GitHub runner image.
 
 The current defaults are chosen to produce a better general-purpose package for downstream consumers:
@@ -68,6 +78,7 @@ Each release publishes:
 
 - `llvm-<version>-windows-x64-static.zip`
 - `llvm-<version>-linux-x64-static.tar.xz`
+- `llvm-<version>-linux-arm64-static.tar.xz`
 - `llvm-<version>-macos-arm64-static.tar.xz`
 - `SHA256SUMS.txt`
 
@@ -100,6 +111,7 @@ linkage/runtime mode and the build provenance used to produce it, including:
 - compiler/linker version details
 - Windows toolset and SDK details when applicable
 - macOS deployment target when applicable
+- container image, build userspace, and libc version when applicable
 
 The Windows archive is a better default package than the previous floating-runtime variant, but it is still not a guarantee of universal MSVC compatibility for all downstream static-link scenarios.
 
@@ -116,9 +128,11 @@ The workflow:
 
 1. Reads the pinned ref from [`llvm.version`](./llvm.version)
 2. Checks out `llvm/llvm-project` at that ref
-3. Builds and installs LLVM on each supported host runner
+3. Builds and installs LLVM on each supported architecture, using Debian 12 containers on Linux
 4. Packages each install into its platform archive format
-5. Uploads intermediate workflow artifacts
+5. Extracts Linux archives, checks ELF architecture and runtime symbol requirements,
+   links and executes a static C API/ORC JIT consumer, and checks object emission
+   for X86, AArch64, and WebAssembly before uploading workflow artifacts
 6. Generates `SHA256SUMS.txt`
 7. Publishes or updates the matching GitHub release
 
@@ -155,6 +169,16 @@ Unix:
 ./build_local.sh
 ./build_local.sh --install-dir /tmp/llvm-install
 ./build_local.sh --package
+```
+
+Local builds use the current host's toolchain and libraries; they do not automatically
+inherit the CI Linux compatibility baseline. To validate an extracted Linux package
+in a matching Debian 12 environment:
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 tests/check_linux_package.py /path/to/extracted-llvm x64
+# Use arm64 for a native ARM64 package.
 ```
 
 ### Manual trigger from GitHub Actions
